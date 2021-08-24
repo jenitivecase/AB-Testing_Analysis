@@ -41,7 +41,19 @@ joined_data <- pre_data %>%
   mutate(ExpGroups = factor(ExpGroups, levels = c("None", "General", "Explicit"))) %>%
   mutate(Q1001 = factor(Q1001, levels = c("Extremely negative", "Moderately negative", "Slightly negative",
                                           "Neither positive nor negative",
-                                          "Slightly positive", "Moderately positive", "Extremely positive")))
+                                          "Slightly positive", "Moderately positive", "Extremely positive"))) %>%
+  mutate(Q1002 = factor(Q1002, levels = c("Not innovative at all", "Slightly innovative", "Moderately innovate", 
+                                          "Very innovative", "Extremely innovative"),
+                        labels = c("Not innovative at all", "Slightly innovative", "Moderately innovative", 
+                                            "Very innovative", "Extremely innovative"))) %>%
+  mutate(Q1003 = factor(Q1003, levels = c("Not well made at all", "Slightly well made", "Moderately well made",
+                                          "Very well made", "Extremely well made"))) %>%
+  mutate(Q1004 = factor(Q1004, levels = c("Not often at all", "Slightly often", "Moderately often", 
+                                          "Very often", "Extremely often"))) %>%
+  mutate(Q1005 = factor(Q1005, levels = c("Not likely at all", "Slightly likely", "Moderately likely", 
+                                          "Very likely", "Extremely likely"))) %>%
+  mutate(Q1007 = factor(Q1007, levels = c("Not necessary at all", "Slightly necessary", "Moderately necessary", 
+                                          "Very necessary", "Extremely necessary")))    
 
 groups <- unique(joined_data$ExpGroups)
 
@@ -315,33 +327,55 @@ summary.lm(MIKAT_anova)
 
 ### PRODUCT QUESTIONS ####
 
-label <- datadict[datadict$code == "Q1001", "longname"]
-
-question_means <- joined_data %>%
-  group_by(ExpGroups) %>%
-  summarise(n = n(),
-            MeanRating = mean(as.numeric(Q1001), na.rm = TRUE)) 
+product_questions <- c(paste0("Q", 1001:1005), "Q1007")
 
 
-ggplot(joined_data) +
-  geom_histogram(aes(x = as.integer(Q1001),
-                     fill = ExpGroups, group = ExpGroups),
-                 binwidth = 1) +
-  facet_grid(ExpGroups ~ .) +
-  scale_x_continuous(limits = c(0.5, 7.5), breaks = seq(1, 7, 1),
-                     minor_breaks = NULL, 
-                     labels = c("Extremely negative", "", "",
-                                "Neither positive nor negative",
-                                "", "", "Extremely positive")) +
-  geom_vline(data = question_means, aes(xintercept = MeanRating, group = ExpGroups)) +
-  geom_text(data = question_means, aes(x = MeanRating, y = 35, group = ExpGroups,
-                                    label = round(MeanRating, 2)),
-            nudge_x = 0.5) +
-  scale_fill_manual(values = JB_palette[c(2,4,6)]) +
-  theme(legend.position = "none") +
-  labs(title = paste0("Rating Distributions by ", exp_var_title),
-       subtitle = label,
-       x = "Rating",
-       y = "Participants",
-       fill = "Tactics Version") 
+product_question_graphing <- function(q_col){
+  label <- datadict[datadict$code == q_col, "longname"]
+  
+  q_col <- as.name(q_col)
+  
+  question_means <- joined_data %>%
+    group_by(ExpGroups) %>%
+    summarise(n = n(),
+              MeanRating = mean(as.numeric({{q_col}}), na.rm = TRUE)) 
+  
+  response_levels <- joined_data %>% 
+    pull({{q_col}}) %>% 
+    levels()
+  
+  indices_to_keep <- c(1, ceiling(length(response_levels)/2), length(response_levels))
+  indices_to_discard <- seq(1, length(response_levels), 1)
+  indices_to_discard <- indices_to_discard[!indices_to_discard %in% indices_to_keep]
+  
+  response_labels <- response_levels
+  response_labels[indices_to_discard] <- ""
+  response_labels[indices_to_keep] <- paste0(indices_to_keep, ": ", response_labels[indices_to_keep])
+  
+  ggplot(joined_data) +
+    geom_histogram(aes(x = as.integer({{q_col}}),
+                       fill = ExpGroups, group = ExpGroups),
+                   binwidth = 1) +
+    facet_grid(ExpGroups ~ .) +
+    scale_x_continuous(limits = c(0.5, length(response_levels)+0.5), 
+                       breaks = seq(1, length(response_levels), 1),
+                       minor_breaks = NULL, 
+                       labels = response_labels) +
+    geom_vline(data = question_means, aes(xintercept = MeanRating, group = ExpGroups)) +
+    geom_text(data = question_means, aes(x = MeanRating, y = 35, group = ExpGroups,
+                                         label = round(MeanRating, 2)),
+              nudge_x = 0.5) +
+    scale_fill_manual(values = JB_palette[c(2,4,6)]) +
+    theme(legend.position = "none") +
+    labs(subtitle = paste0("Rating Distributions by ", exp_var_title),
+         title = linetrunc(label, 50),
+         x = "Rating",
+         y = "Participants",
+         fill = "Tactics Version") 
+}
+
+for(question in product_questions){
+  print(product_question_graphing(question))
+}
+
 
