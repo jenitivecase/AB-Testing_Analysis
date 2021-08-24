@@ -1,0 +1,27 @@
+{
+    "id": "7E7A9302",
+    "path": "~/AB Testing/AB_initial_analysis.R",
+    "project_path": "AB_initial_analysis.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1628184841716.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "117,43",
+        "scrollLine": "105"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1629825562,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1629825562401,
+    "read_only": false,
+    "read_only_alternatives": []
+}
