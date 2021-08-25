@@ -30,6 +30,11 @@ post_data <- data %>%
 post_data <- post_data[, 53:ncol(data)] %>%
   select(-Link)
 
+self_eff_levels <- c("Strongly Disagree", "Somewhat disagree", "Neither agree nor disagree",
+                     "Somewhat agree", "Strongly agree")
+self_eff_labels <- c("Strongly disagree", "Somewhat disagree", "Neither agree nor disagree",
+                     "Somewhat agree", "Strongly agree")
+
 joined_data <- pre_data %>%
   full_join(post_data, by = "S1") %>%
   arrange(S1, IPAddress) %>%
@@ -53,7 +58,9 @@ joined_data <- pre_data %>%
   mutate(Q1005 = factor(Q1005, levels = c("Not likely at all", "Slightly likely", "Moderately likely", 
                                           "Very likely", "Extremely likely"))) %>%
   mutate(Q1007 = factor(Q1007, levels = c("Not necessary at all", "Slightly necessary", "Moderately necessary", 
-                                          "Very necessary", "Extremely necessary")))    
+                                          "Very necessary", "Extremely necessary"))) %>%
+  mutate_at(.vars = c(paste0("Q35_", 1:5), paste0("Q1015_", 1:5)),
+            .funs = function(x)(factor(x, levels = self_eff_levels, labels = self_eff_labels)))
 
 groups <- unique(joined_data$ExpGroups)
 
@@ -233,16 +240,16 @@ ggplot(joined_data) +
                  binwidth = 1, alpha = 0.5) +
   geom_histogram(aes(x = MIKAT_post_score, fill = JB_palette[4]),
                  binwidth = 1, alpha = 0.5) +
-  #label the posttest mean
+  #label the posttest mean - using annotate instead of geom_text to avoid plotting for each geom layer
   geom_vline(aes(xintercept = mean(MIKAT_post_score)), size = 1, color = "black") +
-  geom_text(aes(x = mean(MIKAT_post_score), y = 100, 
-                label = paste0("Post mean:", round(mean(MIKAT_post_score), 2))),
-            nudge_x = .95, color = "black") +
+  annotate("text", x = mean(joined_data$MIKAT_post_score) + .95, y = 100, 
+           label = paste0("Post mean:", round(mean(joined_data$MIKAT_post_score), 2)),
+           color = "black") +
   #label the pretest mean
   geom_vline(aes(xintercept = mean(MIKAT_pre_score)), size = 1, color = JB_palette[1]) +
-  geom_text(aes(x = mean(MIKAT_pre_score), y = 100, 
-                label = paste0("Pre mean:", round(mean(MIKAT_pre_score), 2))),
-            nudge_x = -.95, color = JB_palette[1]) +
+  annotate("text", x = mean(joined_data$MIKAT_pre_score) - .95, y = 100, 
+           label = paste0("Pre mean:", round(mean(joined_data$MIKAT_pre_score), 2)),
+           color = JB_palette[1]) +
   scale_fill_identity(name = 'Pre/Post', guide = 'legend',labels = c('Post', 'Pre')) +
   theme(legend.position = "none") + 
   labs(title = paste0("Adapted MIKAT Pre/Post Scores for the full sample"),
@@ -329,6 +336,17 @@ summary.lm(MIKAT_anova)
 
 product_questions <- c(paste0("Q", 1001:1005), "Q1007")
 
+likert_labeler <- function(levels){
+  indices_to_keep <- c(1, ceiling(length(levels)/2), length(levels))
+  indices_to_discard <- seq(1, length(levels), 1)
+  indices_to_discard <- indices_to_discard[!indices_to_discard %in% indices_to_keep]
+  
+  response_labels <- levels
+  response_labels[indices_to_discard] <- ""
+  response_labels[indices_to_keep] <- paste0(indices_to_keep, ": ", response_labels[indices_to_keep])
+  
+  return(response_labels)
+}
 
 product_question_graphing <- function(q_col){
   label <- datadict[datadict$code == q_col, "longname"]
@@ -344,13 +362,7 @@ product_question_graphing <- function(q_col){
     pull({{q_col}}) %>% 
     levels()
   
-  indices_to_keep <- c(1, ceiling(length(response_levels)/2), length(response_levels))
-  indices_to_discard <- seq(1, length(response_levels), 1)
-  indices_to_discard <- indices_to_discard[!indices_to_discard %in% indices_to_keep]
-  
-  response_labels <- response_levels
-  response_labels[indices_to_discard] <- ""
-  response_labels[indices_to_keep] <- paste0(indices_to_keep, ": ", response_labels[indices_to_keep])
+  response_labels <- likert_labeler(response_levels)
   
   ggplot(joined_data) +
     geom_histogram(aes(x = as.integer({{q_col}}),
@@ -376,6 +388,88 @@ product_question_graphing <- function(q_col){
 
 for(question in product_questions){
   print(product_question_graphing(question))
+  # Sys.sleep(10)
 }
 
+
+### SELF-EFFICACY ####
+
+joined_data <- joined_data %>%
+  mutate(self_eff_pre_score = pmap_dbl(.l = list(Q35_1, Q35_2, Q35_3, Q35_4, Q35_5),
+                                    .f = function(...){ sum(as.numeric(...)) })) %>%
+  mutate(self_eff_post_score = pmap_dbl(.l = list(Q1015_1, Q1015_2, Q1015_3, Q1015_4, Q1015_5),
+                                     .f = function(...){ sum(as.numeric(...)) })) %>%
+  mutate(self_eff_change = pmap_dbl(.l = list(self_eff_post_score, self_eff_pre_score),
+                                 .f = function(x, y){x-y}))
+  
+self_eff_ttest <- t.test(joined_data$self_eff_pre_score, joined_data$self_eff_post_score, paired = TRUE, alternative = "less")
+
+self_eff_stat_subtitle <- ifelse(self_eff_ttest$p.value <= 0.05,
+                              "Post-test scores were significantly higher, indicating an increase in self-efficacy",
+                              "Post-test scores were NOT significantly higher")
+
+ggplot(joined_data) + 
+  geom_histogram(aes(x = self_eff_pre_score, fill = JB_palette[1]),
+                 binwidth = 1, alpha = 0.5) +
+  geom_histogram(aes(x = self_eff_post_score, fill = JB_palette[4]),
+                 binwidth = 1, alpha = 0.5) +
+  #label the posttest mean - using annotate instead of geom_text to avoid plotting for each geom layer
+  geom_vline(aes(xintercept = mean(self_eff_post_score, na.rm = TRUE)), size = 1, color = "black") +
+  annotate("text", x = mean(joined_data$self_eff_post_score, na.rm = TRUE) + .95, y = 100, 
+           label = paste0("Post mean:", round(mean(joined_data$self_eff_post_score, na.rm = TRUE), 2)),
+           color = "black") +
+  #label the pretest mean
+  geom_vline(aes(xintercept = mean(self_eff_pre_score)), size = 1, color = JB_palette[1]) +
+  annotate("text", x = mean(joined_data$self_eff_pre_score) - .95, y = 100, 
+           label = paste0("Pre mean:", round(mean(joined_data$self_eff_pre_score), 2)),
+           color = JB_palette[1]) +
+  scale_fill_identity(name = 'Pre/Post', guide = 'legend',labels = c('Post', 'Pre')) +
+  theme(legend.position = "none") + 
+  labs(title = paste0("Self-Efficacy Pre/Post Scores for the full sample"),
+       subtitle = self_eff_stat_subtitle,
+       caption = "According to a one-sided paired sample t-test",
+       x = "Self-Efficacy Score",
+       y = "Participants") 
+
+
+self_eff_data <- joined_data %>%
+  select(ExpGroups, S1, Q35_1, Q35_2, Q35_3, Q35_4, Q35_5, Q1015_1, Q1015_2, Q1015_3, Q1015_4, Q1015_5) %>%
+  pivot_longer(names_to = "question", values_to = "response",
+               cols = c(paste0("Q35_", 1:5), paste0("Q1015_", 1:5))) %>%
+  mutate(pre_post = case_when(question %in% paste0("Q35_", 1:5) ~ "Pre",
+                             TRUE ~ "Post")) %>%
+  mutate(pre_post = factor(pre_post, levels = c("Pre", "Post"))) %>%
+  mutate(label = case_when(question %in% c("Q35_1", "Q1015_1") ~ "Motivate change",
+                           question %in% c("Q35_2", "Q1015_2") ~ "Start convo",
+                           question %in% c("Q35_3", "Q1015_3") ~ "Use empathy",
+                           question %in% c("Q35_4", "Q1015_4") ~ "Focus on facts",
+                           question %in% c("Q35_5", "Q1015_5") ~ "Problem-solve"))
+
+
+self_eff_means <- self_eff_data %>%
+  group_by(label, pre_post) %>%
+  summarise(n = n(),
+            MeanScore = mean(as.numeric(response), na.rm = TRUE)) 
+
+
+self_eff_response_labels <- likert_labeler(self_eff_labels)
+
+ggplot(self_eff_data) +
+  geom_histogram(aes(x = as.numeric(response), fill = pre_post),
+                 binwidth = 1, alpha = 0.5, position = position_identity()) +
+  geom_vline(data = filter(self_eff_means, pre_post == "Pre"),
+             aes(xintercept = MeanScore, group = label), color = JB_palette[1]) +
+  geom_vline(data = filter(self_eff_means, pre_post == "Post"),
+             aes(xintercept = MeanScore, group = label), color = "black") +
+  scale_x_continuous(limits = c(0.5, length(self_eff_response_labels)+0.5), 
+                     breaks = seq(1, length(self_eff_response_labels), 1),
+                     minor_breaks = NULL, 
+                     labels = self_eff_response_labels) +
+  facet_grid(label ~ .) +
+  scale_fill_manual(values = JB_palette[c(1, 4)]) +
+  theme(legend.position = "bottom") + 
+  labs(title = paste0("Self-Efficacy responses by item for the full sample"),
+       x = "Response",
+       y = "Participants",
+       fill = "Pre/Post") 
 

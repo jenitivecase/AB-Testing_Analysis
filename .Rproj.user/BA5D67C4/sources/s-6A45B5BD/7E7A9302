@@ -3,7 +3,7 @@
     "path": "~/AB Testing/AB_initial_analysis.R",
     "project_path": "AB_initial_analysis.R",
     "type": "r_source",
-    "hash": "884529182",
+    "hash": "2855569156",
     "contents": "",
     "dirty": false,
     "created": 1628184841716.0,
@@ -13,15 +13,15 @@
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "379,0",
-        "scrollLine": "350"
+        "cursorPosition": "474,0",
+        "scrollLine": "449"
     },
     "folds": "",
-    "lastKnownWriteTime": 1629839238,
+    "lastKnownWriteTime": 1629927214,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1629839238979,
+    "last_content_update": 1629927214665,
     "read_only": false,
     "read_only_alternatives": []
 }
